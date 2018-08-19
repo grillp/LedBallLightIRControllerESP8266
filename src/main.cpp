@@ -14,9 +14,9 @@
 #include "env.h"
 
 const int pin_ir_send = 12; // Writing Pin
-const int pin_led = BUILTIN_LED;                               // Built in LED defined for WEMOS people
+const int pin_led = LED_BUILTIN;
 const int pin_button = 0;
-const unsigned int capture_buffer_size = 150;                      // Size of the IR capture buffer.
+const unsigned int capture_buffer_size = 150;
 
 IRsend irsend(pin_ir_send);
 
@@ -25,6 +25,7 @@ Ticker ticker;
 typedef struct _command_data {
   String url;
   uint64_t code;
+  bool prefix_with_on;
 } command_data;
 
 #define IRCODE_ON 0x1FE48B7UL
@@ -41,17 +42,17 @@ typedef struct _command_data {
 
 command_data COMMAND_DATA[] =
 {
-  { "on", IRCODE_ON },
-  { "off", IRCODE_OFF },
-  { "red", IRCODE_RED },
-  { "yellow", IRCODE_YELLOW },
-  { "white", IRCODE_WHITE },
-  { "blue", IRCODE_BLUE },
-  { "lightblue", IRCODE_LIGHTBLUE },
-  { "green", IRCODE_GREEN },
-  { "purple", IRCODE_PURPLE },
-  { "brightness", IRCODE_BRIGHTNESS },
-  { "cycle", IRCODE_CYCLE },
+  { "on", IRCODE_ON, false },
+  { "off", IRCODE_OFF, false },
+  { "red", IRCODE_RED, true },
+  { "yellow", IRCODE_YELLOW, true },
+  { "white", IRCODE_WHITE, true },
+  { "blue", IRCODE_BLUE, true },
+  { "lightblue", IRCODE_LIGHTBLUE, true },
+  { "green", IRCODE_GREEN, true },
+  { "purple", IRCODE_PURPLE, true },
+  { "brightness", IRCODE_BRIGHTNESS, false },
+  { "cycle", IRCODE_CYCLE, true },
 };
 //
 // { "state",  }
@@ -134,6 +135,10 @@ void setupServer()
   for(uint i=0; i < sizeof(COMMAND_DATA)/sizeof(command_data); i++) {
     _command_data *cmd = &(COMMAND_DATA[i]);
     server.on(String("/")+cmd->url,[cmd]() {
+      if (cmd->prefix_with_on) {
+        sendIRCode(IRCODE_ON);
+        delay(500);
+      }
       sendIRCode(cmd->code);
       sendStateResponse();
     });
