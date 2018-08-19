@@ -116,6 +116,24 @@ void handleStatus() {
   sendStateResponse();
 }
 
+void loadFomColorString(String colorString)
+{
+  int idx = 0;
+  int number = 0;
+  for (uint i=1; i<colorString.length(); i++) // Ignore ( at the start
+  {
+    char c = colorString[i];
+    if (c>='0' && c<= '9') {
+        number *= 10;
+        number += (int)(c-'0');
+    }
+    else {
+      ball_rgb_color[idx++]=number;
+      number=0;
+    }
+  }
+}
+
 void handleNotFound() {
   String message = "File Not Found\n\n";
   message += "URI: ";
@@ -128,6 +146,16 @@ void handleNotFound() {
   for (uint8_t i = 0; i < server.args(); i++)
     message += " " + server.argName(i) + ": " + server.arg(i) + "\n";
   server.send(404, "text/plain", message);
+}
+
+void handleColorCommand() {
+  String colorArg = server.arg("c");
+  if (colorArg) {
+    loadFomColorString(colorArg);
+    sendStateResponse();
+  } else {
+    handleNotFound();
+  }
 }
 
 void setupServer()
@@ -144,7 +172,8 @@ void setupServer()
     });
   }
   server.on("/", handleStatus);
-  server.on("/status", handleStatus);
+  server.on("/state", handleStatus);
+  server.on("/color", handleColorCommand);
   server.onNotFound(handleNotFound);
   server.begin();
 }
