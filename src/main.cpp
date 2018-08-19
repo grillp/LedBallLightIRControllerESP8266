@@ -96,9 +96,17 @@ bool ifPressedAndIdle(int pin) {
   return !ticker.active() && (digitalRead(pin) == LOW);
 }
 
-void serialPrintUri(){
+void serialPrintUri() {
   Serial.print("cmd: ");
-  Serial.println(server.uri());
+  Serial.print(server.uri());
+  if (server.args()>0) Serial.write('?');
+  for (int i=0; i<server.args(); i++) {
+    if (i!=0) Serial.write('&');
+    Serial.print(server.argName(i));
+    Serial.print('=');
+    Serial.print(server.arg(i));
+  }
+  Serial.println();
 }
 
 #if USE_LED_BUILTIN
@@ -135,10 +143,12 @@ void sendIRCode(uint64_t code)
 // State Management
 void setStateColor(led_colors *color) {
   ball_color=color;
-  ball_on=true;
   ball_brightness=MAX_BRIGHTNESS_LEVEL;
-  sendIRCode(IRCODE_ON);
-  delay(delay_between_ircodes);
+  if (!ball_on) {
+    ball_on=true;
+    sendIRCode(IRCODE_ON);
+    delay(delay_between_ircodes);
+  }
   sendIRCode(color->color_ir_code);
 }
 
@@ -254,6 +264,7 @@ void handleColorCommand() {
 }
 
 void handleBrightness() {
+  serialPrintUri();
   if (ball_on) {
     bool first = true;
     int requiredLevel = server.arg("l").toInt();
