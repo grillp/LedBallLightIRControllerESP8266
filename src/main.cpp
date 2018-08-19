@@ -336,9 +336,13 @@ void setup() {
   Serial.println(WiFi.SSID());
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP().toString());
+  Serial.print("Hostname address: ");
+  Serial.println(WiFi.localIP().toString());
 
   if (mdns.begin(HOST_NAME, WiFi.localIP())) {
-    Serial.println("MDNS responder started");
+    Serial.print("Hostname address: ");
+    Serial.print(HOST_NAME);
+    Serial.print(".local");
   }
 
   // Turn Off LED
@@ -365,7 +369,7 @@ void loop() {
   server.handleClient();
 
   if (ifPressedAndIdle(pin_button)) {
-    sendIRCode(0x01FE48B7UL);
+    sendIRCode(IRCODE_OFF);
   }
 
   delay(200);
