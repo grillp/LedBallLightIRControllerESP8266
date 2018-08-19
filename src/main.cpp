@@ -250,6 +250,7 @@ void setupServer()
     }
     else {
       server.on(String("/")+cmd->url,[cmd]() {
+        if (cmd->code == IRCODE_ON) ball_on=true;
         if (ball_on) sendIRCode(cmd->code);
         if (cmd->code == IRCODE_OFF) ball_on=false;
         if (cmd->code == IRCODE_BRIGHTNESS) ball_brightness=(ball_brightness%3)+1;
