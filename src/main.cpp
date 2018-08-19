@@ -24,11 +24,10 @@ IRsend irsend(pin_ir_send);
 
 Ticker ticker;
 
-typedef struct _command_data {
+typedef struct _color_command_data {
   String url;
   uint64_t code;
-  bool is_color_cmd;
-} command_data;
+} color_command_data;
 
 #define IRCODE_ON 0x1FE48B7UL
 #define IRCODE_OFF 0x1FE7887UL
@@ -44,18 +43,16 @@ typedef struct _command_data {
 
 void handleBrighntness();
 
-command_data COMMAND_DATA[] =
+color_command_data COLOR_COMMAND_DATA[] =
 {
-  { "on", IRCODE_ON, true },
-  { "off", IRCODE_OFF, false },
-  { "red", IRCODE_RED, true },
-  { "yellow", IRCODE_YELLOW, true },
-  { "white", IRCODE_WHITE, true },
-  { "blue", IRCODE_BLUE, true },
-  { "lightblue", IRCODE_LIGHTBLUE, true },
-  { "green", IRCODE_GREEN, true },
-  { "purple", IRCODE_PURPLE, true },
-  { "cycle", IRCODE_CYCLE, true },
+  { "red", IRCODE_RED },
+  { "yellow", IRCODE_YELLOW },
+  { "white", IRCODE_WHITE },
+  { "blue", IRCODE_BLUE },
+  { "lightblue", IRCODE_LIGHTBLUE },
+  { "green", IRCODE_GREEN },
+  { "purple", IRCODE_PURPLE },
+  { "cycle", IRCODE_CYCLE },
 };
 
 // RGB color approximations for each LED color
@@ -142,14 +139,11 @@ void sendIRCode(uint64_t code)
 
 // State Management
 void setStateColor(led_colors *color) {
-  ball_color=color;
-  ball_brightness=MAX_BRIGHTNESS_LEVEL;
-  if (!ball_on) {
-    ball_on=true;
-    sendIRCode(IRCODE_ON);
-    delay(delay_between_ircodes);
+  if (ball_on) {
+    ball_color=color;
+    ball_brightness=MAX_BRIGHTNESS_LEVEL;
+    sendIRCode(color->color_ir_code);
   }
-  sendIRCode(color->color_ir_code);
 }
 
 // Server code
@@ -275,39 +269,51 @@ void handleBrightness() {
       ball_brightness=(ball_brightness%MAX_BRIGHTNESS_LEVEL)+1;
     }
   }
+  sendStateResponse();
 }
+
+void handleOn() {
+  serialPrintUri();
+  if (!ball_on) {
+    ball_on=true;
+    ball_brightness=MAX_BRIGHTNESS_LEVEL;
+    sendIRCode(IRCODE_ON);
+  }
+  sendStateResponse();
+}
+
+void handleOff() {
+  serialPrintUri();
+  if (ball_on) {
+    ball_on=false;
+    sendIRCode(IRCODE_OFF);
+  }
+  sendStateResponse();
+}
+
 
 // -----------------------------------
 // HTTP Server setup
 // -----------------------------------
 void setupServer()
 {
-  for(uint i=0; i < sizeof(COMMAND_DATA)/sizeof(command_data); i++) {
-    _command_data *cmd = &(COMMAND_DATA[i]);
-    if (cmd->is_color_cmd) {
+  for(uint i=0; i < sizeof(COLOR_COMMAND_DATA)/sizeof(color_command_data); i++) {
+    _color_command_data *cmd = &(COLOR_COMMAND_DATA[i]);
       server.on(String("/")+cmd->url,[cmd]() {
         serialPrintUri();
         setStateColor(findColorForIrCode(cmd->code));
         sendStateResponse();
       });
-    }
-    else {
-      server.on(String("/")+cmd->url,[cmd]() {
-        serialPrintUri();
-        if (ball_on) sendIRCode(cmd->code);
-        if (cmd->code == IRCODE_OFF) ball_on=false;
-        sendStateResponse();
-      });
-    }
   }
   server.on("/", handleStatus);
+  server.on("/on", handleOn);
+  server.on("/off", handleOff);
   server.on("/state", handleStatus);
   server.on("/color", handleColorCommand);
   server.on("/brightness", handleBrightness);
   server.onNotFound(handleNotFound);
   server.begin();
 }
-
 
 // -----------------------------------
 // Device Seetup
