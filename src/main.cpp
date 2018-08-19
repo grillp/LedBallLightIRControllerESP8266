@@ -59,7 +59,7 @@ const char KEY_COLOR[]="color";
 String stateAsJson()
 {
   String stateJson;
-  StaticJsonBuffer<500> jsonBuffer;
+  StaticJsonBuffer<100> jsonBuffer;
   JsonObject& root = jsonBuffer.createObject();
   root[KEY_COLOR] = String("["+String(ball_rgb_color[0],DEC)+" ,"+String(ball_rgb_color[1],DEC)+" ,"+String(ball_rgb_color[2],DEC)+"]");
   root[KEY_STATE] = ball_on ? "ON": "OFF";
@@ -67,6 +67,7 @@ String stateAsJson()
   root.printTo(stateJson);
   return stateJson;
 }
+
 
 void disableLed()
 {
