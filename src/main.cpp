@@ -137,7 +137,10 @@ String stateAsJson()
   String stateJson;
   StaticJsonBuffer<100> jsonBuffer;
   JsonObject& root = jsonBuffer.createObject();
-  root[KEY_COLOR] = String("["+String(ball_color->r,DEC)+" ,"+String(ball_color->g,DEC)+" ,"+String(ball_color->b,DEC)+"]");
+  JsonArray& array = root.createNestedArray(KEY_COLOR);
+  array.add(ball_color->r);
+  array.add(ball_color->g);
+  array.add(ball_color->b);
   root[KEY_STATE] = ball_on ? "ON": "OFF";
   root[KEY_BRIGHTNESS] = ball_brightness;
   root.printTo(stateJson);
