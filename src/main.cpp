@@ -274,7 +274,8 @@ void setup() {
     Serial.print(".");
   }
   Serial.println("");
-  Serial.print("Connected to " + WiFi.SSID());
+  Serial.print("Connected to ");
+  Serial.println(WiFi.SSID());
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP().toString());
 
