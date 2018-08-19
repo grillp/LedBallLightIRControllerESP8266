@@ -265,7 +265,7 @@ void setup() {
 
   Serial.begin(115200);
   delay(1000);
-  WiFi.begin(SSID, SSID_PW);
+  WiFi.begin(SSID_NAME, SSID_PW);
   Serial.println("");
 
   Serial.print("Waiting for WiFi.");
@@ -274,7 +274,7 @@ void setup() {
     Serial.print(".");
   }
   Serial.println("");
-  Serial.print("Connected to " + WiFi.BSSIDstr());
+  Serial.print("Connected to " + WiFi.SSID());
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP().toString());
 
