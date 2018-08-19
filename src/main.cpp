@@ -17,6 +17,8 @@ const int pin_ir_send = 12; // Writing Pin
 const int pin_led = LED_BUILTIN;
 const int pin_button = 0;
 const unsigned int capture_buffer_size = 150;
+const int delay_between_ircodes = 250;
+#define MAX_BRIGHTNESS_LEVEL 3
 
 IRsend irsend(pin_ir_send);
 
@@ -53,7 +55,6 @@ command_data COMMAND_DATA[] =
   { "lightblue", IRCODE_LIGHTBLUE, true },
   { "green", IRCODE_GREEN, true },
   { "purple", IRCODE_PURPLE, true },
-  { "brightness", IRCODE_BRIGHTNESS, false},
   { "cycle", IRCODE_CYCLE, true },
 };
 
@@ -78,7 +79,7 @@ led_colors LED_COLOR_LOOKUP[] = {
 // Current LED Ball State
 bool        ball_on = false;
 led_colors *ball_color = &LED_COLOR_LOOKUP[0];
-int         ball_brightness = 3;
+int         ball_brightness = MAX_BRIGHTNESS_LEVEL;
 
 ESP8266WebServer server(80);
 MDNSResponder mdns;
@@ -135,9 +136,9 @@ void sendIRCode(uint64_t code)
 void setStateColor(led_colors *color) {
   ball_color=color;
   ball_on=true;
-  ball_brightness=3;
+  ball_brightness=MAX_BRIGHTNESS_LEVEL;
   sendIRCode(IRCODE_ON);
-  delay(500);
+  delay(delay_between_ircodes);
   sendIRCode(color->color_ir_code);
 }
 
@@ -252,6 +253,19 @@ void handleColorCommand() {
   }
 }
 
+void handleBrightness() {
+  if (ball_on) {
+    bool first = true;
+    int requiredLevel = server.arg("l").toInt();
+    while (ball_brightness != requiredLevel) {
+      if(!first) delay(delay_between_ircodes);
+      sendIRCode(IRCODE_BRIGHTNESS);
+      first=false;
+      ball_brightness=(ball_brightness%MAX_BRIGHTNESS_LEVEL)+1;
+    }
+  }
+}
+
 // -----------------------------------
 // HTTP Server setup
 // -----------------------------------
@@ -271,7 +285,6 @@ void setupServer()
         serialPrintUri();
         if (ball_on) sendIRCode(cmd->code);
         if (cmd->code == IRCODE_OFF) ball_on=false;
-        if (cmd->code == IRCODE_BRIGHTNESS) ball_brightness=(ball_brightness%3)+1;
         sendStateResponse();
       });
     }
@@ -279,6 +292,7 @@ void setupServer()
   server.on("/", handleStatus);
   server.on("/state", handleStatus);
   server.on("/color", handleColorCommand);
+  server.on("/brightness", handleBrightness);
   server.onNotFound(handleNotFound);
   server.begin();
 }
