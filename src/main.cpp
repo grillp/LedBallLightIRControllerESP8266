@@ -44,7 +44,7 @@ void handleBrighntness();
 
 command_data COMMAND_DATA[] =
 {
-  { "on", IRCODE_ON, false,  },
+  { "on", IRCODE_ON, true },
   { "off", IRCODE_OFF, false },
   { "red", IRCODE_RED, true },
   { "yellow", IRCODE_YELLOW, true },
@@ -95,6 +95,12 @@ bool ifPressedAndIdle(int pin) {
   return !ticker.active() && (digitalRead(pin) == LOW);
 }
 
+voif serialPrintUri(){
+  Serial.print("cmd: ");
+  Serial.println(server.uri());
+}
+
+#if USE_LED_BUILTIN
 // Device LED Routines
 void ledBuiltinOff()
 {
@@ -114,11 +120,15 @@ void ledBuiltinOn(float ms=1000)
   ticker.attach_ms(ms, ledBuiltinOff);
 }
 
+#endif
+
 // IR Sending Code
 void sendIRCode(uint64_t code)
 {
     irsend.sendNEC(code);
-    ledBuiltinOn();
+    #if USE_LED_BUILTIN
+      ledBuiltinOn();
+    #endif
 }
 
 // State Management
@@ -149,7 +159,10 @@ String stateAsJson()
 
 void sendStateResponse()
 {
-    server.send(200, "application/json", stateAsJson());
+  String stateJson = stateAsJson();
+  Serial.print("State: ");
+  Serial.println(stateJson);
+  server.send(200, "application/json", stateJson);
 }
 
 // -----------------------------------
@@ -200,17 +213,20 @@ led_colors *findColorForIrCode(uint64_t ir_code)
   {
     if(LED_COLOR_LOOKUP[i].color_ir_code == ir_code) return &LED_COLOR_LOOKUP[i];
   }
-  return &LED_COLOR_LOOKUP[0];
+  // return the current color if you can;t fnd one..
+  return ball_color;
 }
 
-// -----------------------------------
+  // -----------------------------------
 // Server handlers
 // -----------------------------------
 void handleStatus() {
+  serialPrintUri();
   sendStateResponse();
 }
 
 void handleNotFound() {
+  serialPrintUri();
   String message = "File Not Found\n\n";
   message += "URI: ";
   message += server.uri();
@@ -225,6 +241,7 @@ void handleNotFound() {
 }
 
 void handleColorCommand() {
+  serialPrintUri();
   String colorArg = server.arg("c");
   if (colorArg) {
     uint color[3];
@@ -244,13 +261,14 @@ void setupServer()
     _command_data *cmd = &(COMMAND_DATA[i]);
     if (cmd->is_color_cmd) {
       server.on(String("/")+cmd->url,[cmd]() {
+        serialPrintUri();
         setStateColor(findColorForIrCode(cmd->code));
         sendStateResponse();
       });
     }
     else {
       server.on(String("/")+cmd->url,[cmd]() {
-        if (cmd->code == IRCODE_ON) ball_on=true;
+        serialPrintUri();
         if (ball_on) sendIRCode(cmd->code);
         if (cmd->code == IRCODE_OFF) ball_on=false;
         if (cmd->code == IRCODE_BRIGHTNESS) ball_brightness=(ball_brightness%3)+1;
