@@ -9,6 +9,8 @@
 
 #include <Ticker.h>
 
+#include <ArduinoJson.h>
+
 #include "env.h"
 
 const int pin_ir_send = 12; // Writing Pin
@@ -19,7 +21,7 @@ const unsigned int capture_buffer_size = 150;                      // Size of th
 IRsend irsend(pin_ir_send);
 
 Ticker ticker;
- 
+
 typedef struct {
   String command;
   uint64_t code;
@@ -43,8 +45,28 @@ const color_command COLOR_COMMANDS[] =
 // { "state",  }
 // { "color",  }
 
+bool   ball_on = false;
+int    ball_rgb_color[] = {0,0,0};
+int    ball_brightness = 3;
+
 ESP8266WebServer server(80);
 MDNSResponder mdns;
+
+const char KEY_STATE[]="state";
+const char KEY_BRIGHTNESS[]="brightness";
+const char KEY_COLOR[]="color";
+
+String stateAsJson()
+{
+  String stateJson;
+  StaticJsonBuffer<500> jsonBuffer;
+  JsonObject& root = jsonBuffer.createObject();
+  root[KEY_COLOR] = String("["+String(ball_rgb_color[0],DEC)+" ,"+String(ball_rgb_color[1],DEC)+" ,"+String(ball_rgb_color[2],DEC)+"]");
+  root[KEY_STATE] = ball_on ? "ON": "OFF";
+  root[KEY_BRIGHTNESS] = ball_brightness;
+  root.printTo(stateJson);
+  return stateJson;
+}
 
 void disableLed()
 {
@@ -64,16 +86,20 @@ void ledOn(float ms=1000)
   ticker.attach_ms(ms, disableLed);
 }
 
-void sendCode(uint64_t code)
+void sendIRCode(uint64_t code)
 {
     // Send IR Code
     irsend.sendNEC(code);
     ledOn();
 }
 
+void sendStateResponse()
+{
+    server.send(200, "application/json", stateAsJson());
+}
 
-void handleRoot() {
-  server.send(200, "text/html", "<html>Done!</html>");
+void handleStatus() {
+  sendStateResponse();
 }
 
 void handleNotFound() {
@@ -90,16 +116,18 @@ void handleNotFound() {
   server.send(404, "text/plain", message);
 }
 
-
-void setupColorRoutes()
+void setupServer()
 {
-  for(int i=0; i< sizeof(COLOR_COMMANDS)/sizeof(color_command); i++) {
+  for(uint i=0; i < sizeof(COLOR_COMMANDS)/sizeof(color_command); i++) {
     server.on(String("/")+COLOR_COMMANDS[i].command,[i]() {
-      sendCode(COLOR_COMMANDS[i].code);
-      server.send(200, "text/plain", "Done!");
+      sendIRCode(COLOR_COMMANDS[i].code);
+      sendStateResponse();
     });
   }
-
+  server.on("/", handleStatus);
+  server.on("/status", handleStatus);
+  server.onNotFound(handleNotFound);
+  server.begin();
 }
 
 
@@ -125,8 +153,6 @@ void setup() {
     Serial.println("MDNS responder started");
   }
 
-  server.on("/", handleRoot);
-
   // Turn Off LED
   pinMode(pin_led, OUTPUT);
   digitalWrite(pin_led, LOW);
@@ -134,16 +160,12 @@ void setup() {
   // Put Button into INPUT Mode
   pinMode(pin_button, INPUT);
 
+  setupServer();
+
   Serial.println("");
   Serial.println("ESP8266 IR Server");
   Serial.println("");
   Serial.println("Ready receive and send IR signals");
-
-  server.onNotFound(handleNotFound);
-
-  setupColorRoutes();
-
-  server.begin();
 
 }
 
@@ -156,7 +178,7 @@ void loop() {
   server.handleClient();
 
   if (ifPressedAndIdle(pin_button)) {
-    sendCode(0x01FE48B7UL);
+    sendIRCode(0x01FE48B7UL);
   }
 
   delay(200);
