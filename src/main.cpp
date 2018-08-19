@@ -95,7 +95,7 @@ bool ifPressedAndIdle(int pin) {
   return !ticker.active() && (digitalRead(pin) == LOW);
 }
 
-voif serialPrintUri(){
+void serialPrintUri(){
   Serial.print("cmd: ");
   Serial.println(server.uri());
 }
