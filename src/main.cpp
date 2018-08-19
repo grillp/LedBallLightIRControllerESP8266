@@ -22,24 +22,36 @@ IRsend irsend(pin_ir_send);
 
 Ticker ticker;
 
-typedef struct {
-  String command;
+typedef struct _command_data {
+  String url;
   uint64_t code;
-} color_command;
+} command_data;
 
-const color_command COLOR_COMMANDS[] =
+#define IRCODE_ON 0x1FE48B7UL
+#define IRCODE_OFF 0x1FE7887UL
+#define IRCODE_RED 0X1FE50AFUL
+#define IRCODE_YELLOW 0x1FE30CFUL
+#define IRCODE_WHITE 0x1FE906FUL
+#define IRCODE_BLUE 0x1FEF807UL
+#define IRCODE_LIGHTBLUE 0x1FE708FUL
+#define IRCODE_GREEN 0x1FED827UL
+#define IRCODE_PURPLE 0x1FEB04FUL
+#define IRCODE_BRIGHTNESS 0x1FEE01FUL
+#define IRCODE_CYCLE 0x1FE807FUL
+
+command_data COMMAND_DATA[] =
 {
-  { "on", 0x1FE48B7UL },
-  { "off", 0x1FE7887UL },
-  { "red", 0X1FE50AFUL },
-  { "yellow", 0x1FE30CFUL },
-  { "white", 0x1FE906FUL },
-  { "blue", 0x1FEF807UL },
-  { "lightblue", 0x1FE708FUL },
-  { "green", 0x1FED827UL },
-  { "purple", 0x1FEB04FUL },
-  { "brightness", 0x1FEE01FUL },
-  { "cycle", 0x1FE807FUL },
+  { "on", IRCODE_ON },
+  { "off", IRCODE_OFF },
+  { "red", IRCODE_RED },
+  { "yellow", IRCODE_YELLOW },
+  { "white", IRCODE_WHITE },
+  { "blue", IRCODE_BLUE },
+  { "lightblue", IRCODE_LIGHTBLUE },
+  { "green", IRCODE_GREEN },
+  { "purple", IRCODE_PURPLE },
+  { "brightness", IRCODE_BRIGHTNESS },
+  { "cycle", IRCODE_CYCLE },
 };
 //
 // { "state",  }
@@ -119,9 +131,10 @@ void handleNotFound() {
 
 void setupServer()
 {
-  for(uint i=0; i < sizeof(COLOR_COMMANDS)/sizeof(color_command); i++) {
-    server.on(String("/")+COLOR_COMMANDS[i].command,[i]() {
-      sendIRCode(COLOR_COMMANDS[i].code);
+  for(uint i=0; i < sizeof(COMMAND_DATA)/sizeof(command_data); i++) {
+    _command_data *cmd = &(COMMAND_DATA[i]);
+    server.on(String("/")+cmd->url,[cmd]() {
+      sendIRCode(cmd->code);
       sendStateResponse();
     });
   }
