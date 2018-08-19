@@ -40,9 +40,11 @@ typedef struct _command_data {
 #define IRCODE_BRIGHTNESS 0x1FEE01FUL
 #define IRCODE_CYCLE 0x1FE807FUL
 
+void handleBrighntness();
+
 command_data COMMAND_DATA[] =
 {
-  { "on", IRCODE_ON, false },
+  { "on", IRCODE_ON, false,  },
   { "off", IRCODE_OFF, false },
   { "red", IRCODE_RED, true },
   { "yellow", IRCODE_YELLOW, true },
@@ -51,8 +53,8 @@ command_data COMMAND_DATA[] =
   { "lightblue", IRCODE_LIGHTBLUE, true },
   { "green", IRCODE_GREEN, true },
   { "purple", IRCODE_PURPLE, true },
-  { "brightness", IRCODE_BRIGHTNESS, false },
-  { "cycle", IRCODE_CYCLE, false },
+  { "brightness", IRCODE_BRIGHTNESS, false},
+  { "cycle", IRCODE_CYCLE, true },
 };
 
 // RGB color approximations for each LED color
@@ -70,6 +72,7 @@ led_colors LED_COLOR_LOOKUP[] = {
     {IRCODE_YELLOW, 255, 165, 0},
     {IRCODE_PURPLE, 128, 0, 128},
     {IRCODE_LIGHTBLUE, 0, 255,255},
+    {IRCODE_CYCLE, 0, 0,0},
 };
 
 // Current LED Ball State
@@ -122,6 +125,7 @@ void sendIRCode(uint64_t code)
 void setStateColor(led_colors *color) {
   ball_color=color;
   ball_on=true;
+  ball_brightness=3;
   sendIRCode(IRCODE_ON);
   delay(500);
   sendIRCode(color->color_ir_code);
@@ -245,6 +249,7 @@ void setupServer()
       server.on(String("/")+cmd->url,[cmd]() {
         if (ball_on) sendIRCode(cmd->code);
         if (cmd->code == IRCODE_OFF) ball_on=false;
+        if (cmd->code == IRCODE_BRIGHTNESS) ball_brightness=(ball_brightness%3)+1;
         sendStateResponse();
       });
     }
