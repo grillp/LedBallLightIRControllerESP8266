@@ -25,7 +25,7 @@ Ticker ticker;
 typedef struct _command_data {
   String url;
   uint64_t code;
-  bool prefix_with_on;
+  bool is_color_cmd;
 } command_data;
 
 #define IRCODE_ON 0x1FE48B7UL
@@ -52,15 +52,30 @@ command_data COMMAND_DATA[] =
   { "green", IRCODE_GREEN, true },
   { "purple", IRCODE_PURPLE, true },
   { "brightness", IRCODE_BRIGHTNESS, false },
-  { "cycle", IRCODE_CYCLE, true },
+  { "cycle", IRCODE_CYCLE, false },
 };
-//
-// { "state",  }
-// { "color",  }
 
-bool   ball_on = false;
-int    ball_rgb_color[] = {0,0,0};
-int    ball_brightness = 3;
+// RGB color approximations for each LED color
+// Used for nearestmRGB color approximations
+typedef struct led_colors {
+  uint64_t color_ir_code;
+  uint r, g, b;
+} _led_colors;
+
+led_colors LED_COLOR_LOOKUP[] = {
+    {IRCODE_WHITE, 245, 245, 245},
+    {IRCODE_RED, 139, 0, 0},
+    {IRCODE_GREEN, 0, 255, 0},
+    {IRCODE_BLUE, 0, 0, 139},
+    {IRCODE_YELLOW, 255, 165, 0},
+    {IRCODE_PURPLE, 128, 0, 128},
+    {IRCODE_LIGHTBLUE, 0, 255,255},
+};
+
+// Current LED Ball State
+bool        ball_on = false;
+led_colors *ball_color = &LED_COLOR_LOOKUP[0];
+int         ball_brightness = 3;
 
 ESP8266WebServer server(80);
 MDNSResponder mdns;
@@ -69,20 +84,16 @@ const char KEY_STATE[]="state";
 const char KEY_BRIGHTNESS[]="brightness";
 const char KEY_COLOR[]="color";
 
-String stateAsJson()
-{
-  String stateJson;
-  StaticJsonBuffer<100> jsonBuffer;
-  JsonObject& root = jsonBuffer.createObject();
-  root[KEY_COLOR] = String("["+String(ball_rgb_color[0],DEC)+" ,"+String(ball_rgb_color[1],DEC)+" ,"+String(ball_rgb_color[2],DEC)+"]");
-  root[KEY_STATE] = ball_on ? "ON": "OFF";
-  root[KEY_BRIGHTNESS] = ball_brightness;
-  root.printTo(stateJson);
-  return stateJson;
+
+// ------------------------------------
+// Helper routines
+// ------------------------------------
+bool ifPressedAndIdle(int pin) {
+  return !ticker.active() && (digitalRead(pin) == LOW);
 }
 
-
-void disableLed()
+// Device LED Routines
+void ledBuiltinOff()
 {
   Serial.println("LED off");
   digitalWrite(pin_led, HIGH);                          // Shut down the LED
@@ -90,21 +101,43 @@ void disableLed()
   ticker.detach();                                      // Stopping the ticker
 }
 
-void ledOn(float ms=1000)
+void ledBuiltinOn(float ms=1000)
 {
   Serial.print("LED on for ");
   Serial.print(ms, DEC);
   Serial.println("ms");
   pinMode(pin_led, OUTPUT);
   digitalWrite(pin_led, LOW);                           // Turn on the LED for 0.5 seconds
-  ticker.attach_ms(ms, disableLed);
+  ticker.attach_ms(ms, ledBuiltinOff);
 }
 
+// IR Sending Code
 void sendIRCode(uint64_t code)
 {
-    // Send IR Code
     irsend.sendNEC(code);
-    ledOn();
+    ledBuiltinOn();
+}
+
+// State Management
+void setStateColor(led_colors *color) {
+  ball_color=color;
+  ball_on=true;
+  sendIRCode(IRCODE_ON);
+  delay(500);
+  sendIRCode(color->color_ir_code);
+}
+
+// Server code
+String stateAsJson()
+{
+  String stateJson;
+  StaticJsonBuffer<100> jsonBuffer;
+  JsonObject& root = jsonBuffer.createObject();
+  root[KEY_COLOR] = String("["+String(ball_color->r,DEC)+" ,"+String(ball_color->g,DEC)+" ,"+String(ball_color->b,DEC)+"]");
+  root[KEY_STATE] = ball_on ? "ON": "OFF";
+  root[KEY_BRIGHTNESS] = ball_brightness;
+  root.printTo(stateJson);
+  return stateJson;
 }
 
 void sendStateResponse()
@@ -112,11 +145,10 @@ void sendStateResponse()
     server.send(200, "application/json", stateAsJson());
 }
 
-void handleStatus() {
-  sendStateResponse();
-}
-
-void loadFomColorString(String colorString)
+// -----------------------------------
+// Color Calclations and lookup
+// -----------------------------------
+uint *extractRGBFromColorString(uint rgb[], String colorString)
 {
   int idx = 0;
   int number = 0;
@@ -128,10 +160,47 @@ void loadFomColorString(String colorString)
         number += (int)(c-'0');
     }
     else {
-      ball_rgb_color[idx++]=number;
+      rgb[idx++]=number;
       number=0;
     }
   }
+  return rgb;
+}
+
+#define CALC_DISTANCE(c1r, c1g, c1b, c2r, c2g, c2b) (sq(((double)c2r-(double)c1r)*0.30) + sq(((double)c2g-(double)c1g)*0.59) + sq(((double)c2b-(double)c1b)*0.11))
+
+led_colors *closestColorIrCodeForStateRGB(uint rgb[]) {
+
+  double match_distance = CALC_DISTANCE(0,0,0,255,255,255);
+  uint match_index=0;
+  for (uint i=0; i < sizeof(LED_COLOR_LOOKUP)/sizeof(led_colors); i++)
+  {
+    double distance = CALC_DISTANCE(rgb[0], rgb[1], rgb[2], LED_COLOR_LOOKUP[i].r, LED_COLOR_LOOKUP[i].g, LED_COLOR_LOOKUP[i].b);
+    if (distance == match_distance) {
+      return &LED_COLOR_LOOKUP[i];
+    }
+    if (distance < match_distance) {
+      match_distance = distance;
+      match_index = i;
+    }
+  }
+  return &LED_COLOR_LOOKUP[match_index];
+}
+
+led_colors *findColorForIrCode(uint64_t ir_code)
+{
+  for (uint i=0; i < sizeof(LED_COLOR_LOOKUP)/sizeof(led_colors); i++)
+  {
+    if(LED_COLOR_LOOKUP[i].color_ir_code == ir_code) return &LED_COLOR_LOOKUP[i];
+  }
+  return &LED_COLOR_LOOKUP[0];
+}
+
+// -----------------------------------
+// Server handlers
+// -----------------------------------
+void handleStatus() {
+  sendStateResponse();
 }
 
 void handleNotFound() {
@@ -151,25 +220,34 @@ void handleNotFound() {
 void handleColorCommand() {
   String colorArg = server.arg("c");
   if (colorArg) {
-    loadFomColorString(colorArg);
+    uint color[3];
+    setStateColor(closestColorIrCodeForStateRGB(extractRGBFromColorString(color, colorArg)));
     sendStateResponse();
   } else {
     handleNotFound();
   }
 }
 
+// -----------------------------------
+// HTTP Server setup
+// -----------------------------------
 void setupServer()
 {
   for(uint i=0; i < sizeof(COMMAND_DATA)/sizeof(command_data); i++) {
     _command_data *cmd = &(COMMAND_DATA[i]);
-    server.on(String("/")+cmd->url,[cmd]() {
-      if (cmd->prefix_with_on) {
-        sendIRCode(IRCODE_ON);
-        delay(500);
-      }
-      sendIRCode(cmd->code);
-      sendStateResponse();
-    });
+    if (cmd->is_color_cmd) {
+      server.on(String("/")+cmd->url,[cmd]() {
+        setStateColor(findColorForIrCode(cmd->code));
+        sendStateResponse();
+      });
+    }
+    else {
+      server.on(String("/")+cmd->url,[cmd]() {
+        if (ball_on) sendIRCode(cmd->code);
+        if (cmd->code == IRCODE_OFF) ball_on=false;
+        sendStateResponse();
+      });
+    }
   }
   server.on("/", handleStatus);
   server.on("/state", handleStatus);
@@ -179,6 +257,9 @@ void setupServer()
 }
 
 
+// -----------------------------------
+// Device Seetup
+// -----------------------------------
 void setup() {
   irsend.begin();
 
@@ -193,7 +274,7 @@ void setup() {
     Serial.print(".");
   }
   Serial.println("");
-  Serial.print("Connected to LEXAM");
+  Serial.print("Connected to " + WiFi.BSSIDstr());
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP().toString());
 
@@ -217,10 +298,9 @@ void setup() {
 
 }
 
-bool ifPressedAndIdle(int pin) {
-  return !ticker.active() && (digitalRead(pin) == LOW);
-}
-
+// -----------------------------------
+// Main loop
+// -----------------------------------
 void loop() {
 
   server.handleClient();
