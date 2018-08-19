@@ -320,6 +320,7 @@ void setupServer()
 // -----------------------------------
 void setup() {
   irsend.begin();
+  sendIRCode(IRCODE_OFF);
 
   Serial.begin(115200);
   delay(1000);
@@ -335,8 +336,6 @@ void setup() {
   Serial.print("Connected to ");
   Serial.println(WiFi.SSID());
   Serial.print("IP address: ");
-  Serial.println(WiFi.localIP().toString());
-  Serial.print("Hostname address: ");
   Serial.println(WiFi.localIP().toString());
 
   if (mdns.begin(HOST_NAME, WiFi.localIP())) {
@@ -355,9 +354,12 @@ void setup() {
   setupServer();
 
   Serial.println("");
-  Serial.println("ESP8266 IR Server");
+  Serial.println("LED Ball Server Ready!");
   Serial.println("");
-  Serial.println("Ready receive and send IR signals");
+  Serial.print("Waiting for commands at: ");
+  Serial.print("http://");
+  Serial.print(WiFi.localIP().toString());
+  Serial.println("/");
 
 }
 
