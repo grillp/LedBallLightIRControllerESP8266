@@ -17,7 +17,7 @@ const int pin_ir_send = 12; // Writing Pin
 const int pin_led = LED_BUILTIN;
 const int pin_button = 0;
 const unsigned int capture_buffer_size = 150;
-const int delay_between_ircodes = 250;
+const int delay_between_ircodes = 350;
 #define MAX_BRIGHTNESS_LEVEL 3
 
 IRsend irsend(pin_ir_send);
@@ -230,9 +230,12 @@ void handleStatus() {
   sendStateResponse();
 }
 
-void handleNotFound() {
+void handleError(int error_code) {
+  String message = "Not Found\n\n";
+  if (error_code==400) {
+    message = "Invalid Parameter\n\n";
+  }
   serialPrintUri();
-  String message = "File Not Found\n\n";
   message += "URI: ";
   message += server.uri();
   message += "\nMethod: ";
@@ -242,7 +245,16 @@ void handleNotFound() {
   message += "\n";
   for (uint8_t i = 0; i < server.args(); i++)
     message += " " + server.argName(i) + ": " + server.arg(i) + "\n";
-  server.send(404, "text/plain", message);
+  server.send(error_code, "text/plain", message);
+  Serial.print("Error: ");
+  Serial.print(error_code);
+  Serial.print(" : ");
+  Serial.println(message);
+
+}
+
+void handleNotFound() {
+  handleError(404);
 }
 
 void handleColorCommand() {
@@ -253,23 +265,43 @@ void handleColorCommand() {
     setStateColor(closestColorIrCodeForStateRGB(extractRGBFromColorString(color, colorArg)));
     sendStateResponse();
   } else {
-    handleNotFound();
+    handleError(400);
   }
 }
+
+bool levelArgumentIsValid(int requiredLevel) {
+  if (requiredLevel) {
+    if (requiredLevel>0 && requiredLevel<4)
+      return true;
+  }
+  return false;
+}
+
+#define NEXT_BRIGHTNESS(l) (l%MAX_BRIGHTNESS_LEVEL)+1
 
 void handleBrightness() {
   serialPrintUri();
   if (ball_on) {
     bool first = true;
     int requiredLevel = server.arg("l").toInt();
-    while (ball_brightness != requiredLevel) {
-      if(!first) delay(delay_between_ircodes);
-      sendIRCode(IRCODE_BRIGHTNESS);
-      first=false;
-      ball_brightness=(ball_brightness%MAX_BRIGHTNESS_LEVEL)+1;
+    Serial.println("requiredLevel=" + requiredLevel);
+    if (!requiredLevel) {
+      requiredLevel = NEXT_BRIGHTNESS(ball_brightness);
     }
+    if (levelArgumentIsValid(requiredLevel)) {
+      while (ball_brightness != requiredLevel) {
+        if(!first) delay(delay_between_ircodes);
+        sendIRCode(IRCODE_BRIGHTNESS);
+        first=false;
+        ball_brightness=NEXT_BRIGHTNESS(ball_brightness);
+      }
+      sendStateResponse();
+    }
+    else
+      handleError(400);
   }
-  sendStateResponse();
+  else
+    handleError(400);
 }
 
 void handleOn() {
