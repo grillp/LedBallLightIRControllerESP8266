@@ -1,4 +1,4 @@
-#include "IRremoteESP8266.h"
+#include <IRremoteESP8266.h>
 #include <IRsend.h>
 #include <IRrecv.h>
 #include <IRutils.h>
@@ -150,15 +150,14 @@ void setStateColor(led_colors *color) {
 String stateAsJson()
 {
   String stateJson;
-  StaticJsonBuffer<100> jsonBuffer;
-  JsonObject& root = jsonBuffer.createObject();
-  JsonArray& array = root.createNestedArray(KEY_COLOR);
+  StaticJsonDocument<100> doc;
+  JsonArray array = doc.createNestedArray(KEY_COLOR);
   array.add(ball_color->r);
   array.add(ball_color->g);
   array.add(ball_color->b);
-  root[KEY_STATE] = ball_on ? "ON": "OFF";
-  root[KEY_BRIGHTNESS] = ball_brightness;
-  root.printTo(stateJson);
+  doc[KEY_STATE] = ball_on ? "ON": "OFF";
+  doc[KEY_BRIGHTNESS] = ball_brightness;
+  serializeJson(doc, stateJson);
   return stateJson;
 }
 
