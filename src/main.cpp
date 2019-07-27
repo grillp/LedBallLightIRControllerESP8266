@@ -12,6 +12,7 @@
 #include <ArduinoJson.h>
 
 #include "env.h"
+#include "ota.h"
 
 const int pin_ir_send = 12; // Writing Pin
 const int pin_led = LED_BUILTIN;
@@ -369,6 +370,8 @@ void setup() {
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP().toString());
 
+  ota_setup(HOST_NAME, OTA_PW);
+
   if (mdns.begin(HOST_NAME, WiFi.localIP())) {
     Serial.print("Hostname address: ");
     Serial.print(HOST_NAME);
@@ -398,6 +401,8 @@ void setup() {
 // Main loop
 // -----------------------------------
 void loop() {
+
+  ota_loop();
 
   server.handleClient();
 
